@@ -30,3 +30,9 @@ To use this feature, select the text you want to summarize and run the "Summariz
 ## Contributing
 
 Contributions are welcome! Please feel free to open an issue or submit a pull request.
+
+## Support
+
+If you find this plugin helpful and would like to support its development, you can buy me a coffee! Your support is greatly appreciated.
+
+[![Buy Me A Coffee](https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png)](https://www.buymeacoffee.com/catsg)
