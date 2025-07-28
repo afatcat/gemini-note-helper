@@ -23,9 +23,21 @@ To use this feature, select the text you want to summarize and run the "Summariz
 
 ## How to Use
 
-1.  Install the plugin.
-2.  Go to the plugin settings and enter your Gemini API Key.
-3.  Open a note and use the commands from the command palette.
+1.  **Get your Gemini API Key:**
+    *   Go to [Google AI Studio](https://aistudio.google.com/).
+    *   Log in with your Google account.
+    *   Click on **"Get API Key"** in the top left menu.
+    *   Click **"Create API Key"**.
+    *   Copy the generated key to your clipboard.
+
+2.  **Install the plugin in Obsidian.**
+
+3.  **Configure the plugin:**
+    *   Go to the plugin settings in Obsidian.
+    *   Paste your Gemini API Key into the designated field.
+
+4.  **Start using the features:**
+    *   Open a note and use the commands from the command palette.
 
 ## Contributing
 
