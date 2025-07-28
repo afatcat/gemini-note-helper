@@ -1,116 +1,206 @@
 import { App, Editor, MarkdownView, Modal, Notice, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { ChatView } from './chat/ChatUI';
 
 // Remember to rename these classes and interfaces!
 
-interface MyPluginSettings {
-	mySetting: string;
+export interface GeminiNoteHelperSettings {
+	geminiAPIKey: string;
+	model: string;
 }
 
-const DEFAULT_SETTINGS: MyPluginSettings = {
-	mySetting: 'default'
+const DEFAULT_SETTINGS: GeminiNoteHelperSettings = {
+	geminiAPIKey: '',
+	model: 'gemini-2.5-flash'
 }
 
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class GeminiNoteHelper extends Plugin {
+	settings: GeminiNoteHelperSettings;
 
 	async onload() {
 		await this.loadSettings();
 
-		// This creates an icon in the left ribbon.
-		const ribbonIconEl = this.addRibbonIcon('dice', 'Sample Plugin', (evt: MouseEvent) => {
-			// Called when the user clicks the icon.
-			new Notice('This is a notice!');
-		});
-		// Perform additional things with the ribbon
-		ribbonIconEl.addClass('my-plugin-ribbon-class');
-
-		// This adds a status bar item to the bottom of the app. Does not work on mobile apps.
-		const statusBarItemEl = this.addStatusBarItem();
-		statusBarItemEl.setText('Status Bar Text');
-
-		// This adds a simple command that can be triggered anywhere
-		this.addCommand({
-			id: 'open-sample-modal-simple',
-			name: 'Open sample modal (simple)',
-			callback: () => {
-				new SampleModal(this.app).open();
-			}
-		});
 		// This adds an editor command that can perform some operation on the current editor instance
 		this.addCommand({
-			id: 'sample-editor-command',
-			name: 'Sample editor command',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				console.log(editor.getSelection());
-				editor.replaceSelection('Sample Editor Command');
-			}
-		});
-		// This adds a complex command that can check whether the current state of the app allows execution of the command
-		this.addCommand({
-			id: 'open-sample-modal-complex',
-			name: 'Open sample modal (complex)',
-			checkCallback: (checking: boolean) => {
-				// Conditions to check
-				const markdownView = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (markdownView) {
-					// If checking is true, we're simply "checking" if the command can be run.
-					// If checking is false, then we want to actually perform the operation.
-					if (!checking) {
-						new SampleModal(this.app).open();
-					}
-
-					// This command will only show up in Command Palette when the check function returns true
-					return true;
+			id: 'polish-note',
+			name: 'Polish note',
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				const file = view.file;
+				if (!file) {
+					return;
 				}
+				const content = await this.app.vault.read(file);
+				const { body } = this.extractFrontmatter(content);
+
+				const prompt = `You are an expert editor. Please polish the following note to make it more organized, clear, and well-written. Improve the structure, fix any grammatical errors, and maintain the same tone, but do not add any new information. Return only the polished note.\n\n${body}`;
+
+				new PromptModal(this.app, "Polish", prompt, async (newPrompt) => {
+					try {
+						const genAI = new GoogleGenerativeAI(this.settings.geminiAPIKey);
+						const model = genAI.getGenerativeModel({ model: this.settings.model });
+						const result = await model.generateContent(newPrompt);
+						const response = await result.response;
+						const text = response.text();
+
+						editor.replaceSelection(text);
+						new Notice("Polished note has been inserted.");
+					} catch (e) {
+						console.error(e);
+						new Notice("Error polishing note. Check the console for more details.");
+					}
+				}).open();
 			}
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addCommand({
+			id: 'summarize-note',
+			name: 'Summarize note',
+			editorCallback: async (editor: Editor, view: MarkdownView) => {
+				const file = view.file;
+				if (!file) {
+					return;
+				}
+				const content = await this.app.vault.read(file);
+				const { body } = this.extractFrontmatter(content);
 
-		// If the plugin hooks up any global DOM events (on parts of the app that doesn't belong to this plugin)
-		// Using this function will automatically remove the event listener when this plugin is disabled.
-		this.registerDomEvent(document, 'click', (evt: MouseEvent) => {
-			console.log('click', evt);
+				const prompt = `You are an expert summarizer. Please summarize the following note, capturing the key points and main ideas. Return only the summary.\n\n${body}`;
+
+				new PromptModal(this.app, "Summarize", prompt, async (newPrompt) => {
+					try {
+						const genAI = new GoogleGenerativeAI(this.settings.geminiAPIKey);
+						const model = genAI.getGenerativeModel({ model: this.settings.model });
+						const result = await model.generateContent(newPrompt);
+						const response = await result.response;
+						const text = response.text();
+
+						editor.replaceSelection(text);
+						new Notice("Summary has been inserted.");
+					} catch (e) {
+						console.error(e);
+						new Notice("Error summarizing note. Check the console for more details.");
+					}
+				}).open();
+			}
 		});
 
-		// When registering intervals, this function will automatically clear the interval when the plugin is disabled.
-		this.registerInterval(window.setInterval(() => console.log('setInterval'), 5 * 60 * 1000));
-	}
+		this.addCommand({
+            id: 'chat-with-note',
+            name: 'Chat with note',
+            editorCallback: async (editor: Editor, view: MarkdownView) => {
+                const file = view.file;
+                if (!file) {
+                    return;
+                }
+                const content = await this.app.vault.read(file);
+                const { body } = this.extractFrontmatter(content);
 
-	onunload() {
+                new ChatView(this.app, this.settings, body, file.basename).open();
+            }
+        });
 
-	}
+        // This adds a settings tab so the user can configure various aspects of the plugin
+        this.addSettingTab(new GeminiNoteHelperSettingTab(this.app, this));
+    }
 
-	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
-	}
+    extractFrontmatter(content: string): { frontmatter: string, body: string } {
+        const lines = content.split('\n');
+        let frontmatterEndIndex = -1;
 
-	async saveSettings() {
-		await this.saveData(this.settings);
-	}
+        if (lines[0] === '---') {
+            for (let i = 1; i < lines.length; i++) {
+                if (lines[i] === '---') {
+                    frontmatterEndIndex = i;
+                    break;
+                }
+            }
+        }
+
+        if (frontmatterEndIndex === -1) {
+            return { frontmatter: '', body: content };
+        }
+
+        const frontmatter = lines.slice(0, frontmatterEndIndex + 1).join('\n');
+        const body = lines.slice(frontmatterEndIndex + 1).join('\n').trim();
+
+        return { frontmatter, body };
+    }
+
+    onunload() {
+
+    }
+
+    async loadSettings() {
+        this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    }
+
+    async saveSettings() {
+        await this.saveData(this.settings);
+    }
 }
 
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
+class PromptModal extends Modal {
+    buttonText: string;
+    prompt: string;
+    onSubmit: (prompt: string) => Promise<void>;
 
-	onOpen() {
-		const {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
+    constructor(app: App, buttonText: string, prompt: string, onSubmit: (prompt: string) => Promise<void>) {
+        super(app);
+        this.buttonText = buttonText;
+        this.prompt = prompt;
+        this.onSubmit = onSubmit;
+    }
 
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
-	}
+    onOpen() {
+        const {contentEl} = this;
+
+        contentEl.createEl("h1", { text: "Edit your prompt" });
+
+        const promptTextArea = contentEl.createEl("textarea", {
+            cls: "gemini-prompt-textarea",
+        });
+        promptTextArea.style.width = "100%";
+        promptTextArea.style.height = "200px";
+        promptTextArea.value = this.prompt;
+
+        const buttonContainer = contentEl.createEl("div", {
+            cls: "gemini-button-container",
+        });
+        buttonContainer.style.marginTop = "1rem";
+        buttonContainer.style.textAlign = "right";
+
+        const actionButton = buttonContainer.createEl("button", {
+            text: this.buttonText,
+            cls: "mod-cta",
+        });
+
+        const cancelButton = buttonContainer.createEl("button", {
+            text: "Cancel",
+        });
+        cancelButton.style.marginLeft = "0.5rem";
+
+        actionButton.addEventListener("click", async () => {
+            actionButton.disabled = true;
+            actionButton.textContent = `${this.buttonText}ing...`;
+            const newPrompt = promptTextArea.value;
+            await this.onSubmit(newPrompt);
+            this.close();
+        });
+
+        cancelButton.addEventListener("click", () => {
+            this.close();
+        });
+    }
+
+    onClose() {
+        let {contentEl} = this;
+        contentEl.empty();
+    }
 }
 
-class SampleSettingTab extends PluginSettingTab {
-	plugin: MyPlugin;
+class GeminiNoteHelperSettingTab extends PluginSettingTab {
+	plugin: GeminiNoteHelper;
 
-	constructor(app: App, plugin: MyPlugin) {
+	constructor(app: App, plugin: GeminiNoteHelper) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -121,13 +211,24 @@ class SampleSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName('Setting #1')
-			.setDesc('It\'s a secret')
+			.setName('Gemini API Key')
+			.setDesc('Your Gemini API Key')
 			.addText(text => text
-				.setPlaceholder('Enter your secret')
-				.setValue(this.plugin.settings.mySetting)
+				.setPlaceholder('Enter your API Key')
+				.setValue(this.plugin.settings.geminiAPIKey)
 				.onChange(async (value) => {
-					this.plugin.settings.mySetting = value;
+					this.plugin.settings.geminiAPIKey = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Model')
+			.setDesc('The Gemini model to use')
+			.addText(text => text
+				.setPlaceholder('Enter the model name')
+				.setValue(this.plugin.settings.model)
+				.onChange(async (value) => {
+					this.plugin.settings.model = value;
 					await this.plugin.saveSettings();
 				}));
 	}
