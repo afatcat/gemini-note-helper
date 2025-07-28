@@ -12,14 +12,14 @@ You can have a conversation with your notes. This feature opens a chat view wher
 To use this feature, open a note and run the "Chat with note" command from the command palette.
 
 ### Polish Note
-This feature helps you improve the quality of your writing. It polishes the selected text to make it more organized, clear, and well-written. It fixes grammatical errors and improves the structure of the text without adding new information.
+This feature helps you improve the quality of your writing. It polishes the active note to make it more organized, clear, and well-written. It fixes grammatical errors and improves the structure of the text without adding new information.
 
-To use this feature, select the text you want to polish and run the "Polish note" command from the command palette.
+To use this feature, run the "Polish note" command in the note you want to polish from the command palette. You will have a chance to modify the prompt before sending it to Gemini. The result will be inserted into where the cursor is at.
 
 ### Summarize Note
-This feature provides a quick summary of your notes. It captures the key points and main ideas of the selected text.
+This feature provides a quick summary of your notes. It captures the key points and main ideas of the active note.
 
-To use this feature, select the text you want to summarize and run the "Summarize note" command from the command palette.
+To use this feature, run the "Summarize note" command in the note you want to summarize from the command palette. You will have a chance to modify the prompt before sending it to Gemini. The result will be inserted into where the cursor is at.
 
 ## How to Use
 
